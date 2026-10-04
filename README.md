@@ -62,7 +62,7 @@ Example response (`mm_getinfo`):
    game/csgo/addons/metamod/PlayersInfo.vdf
    ```
 3. Restart the server, or hot-load: `meta load addons/PlayersInfo/PlayersInfo`
-4. Verify: `meta list` → `PlayersInfo (1.3.1) by Pisex`
+4. Verify: `meta list` → `PlayersInfo (1.3.3) by Pisex`
 
 **Requirements:**
 - Metamod:Source 2.x for CS2

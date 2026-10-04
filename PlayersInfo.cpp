@@ -414,7 +414,7 @@ void PlayersInfo::AllPluginsLoaded() {
 }
 
 const char *PlayersInfo::GetLicense() { return "GPL"; }
-const char *PlayersInfo::GetVersion() { return "1.3.2"; }
+const char *PlayersInfo::GetVersion() { return "1.3.3"; }
 const char *PlayersInfo::GetDate() { return __DATE__; }
 const char *PlayersInfo::GetLogTag() { return "PlayersInfo"; }
 const char *PlayersInfo::GetAuthor() { return "Pisex"; }
