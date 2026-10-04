@@ -64,6 +64,9 @@ jobs:
           sed -i 's/NetworkStateChanged_t/NetworkStateChangedData/g' SchemaEntity/schemasystem.cpp
           sed -i 's/FL_PAWN_FAKECLIENT/FL_FAKECLIENT/g' SchemaEntity/CCSPlayerPawn.h
           sed -i 's/FL_CONTROLLER_FAKECLIENT/FL_FAKECLIENT/g' SchemaEntity/CCSPlayerController.h
+          # hl2sdk cs2 no longer pulls ray/gametrace types in transitively; SchemaEntity
+          # needs Ray_t/RayType_t/CHitBox/HitGroup_t from gametrace.h (which includes ray.h)
+          sed -i 's|#include <platform.h>|#include <platform.h>\n#include <gametrace.h>|' SchemaEntity/globaltypes.h
 
       - name: Configure and build plugin
         run: |
@@ -152,6 +155,9 @@ jobs:
             -replace 'FL_PAWN_FAKECLIENT', 'FL_FAKECLIENT' | Set-Content SchemaEntity/CCSPlayerPawn.h -NoNewline
           (Get-Content SchemaEntity/CCSPlayerController.h -Raw) `
             -replace 'FL_CONTROLLER_FAKECLIENT', 'FL_FAKECLIENT' | Set-Content SchemaEntity/CCSPlayerController.h -NoNewline
+          # hl2sdk cs2 no longer pulls ray/gametrace types in transitively
+          (Get-Content SchemaEntity/globaltypes.h -Raw) `
+            -replace '#include <platform.h>', "#include <platform.h>`r`n#include <gametrace.h>" | Set-Content SchemaEntity/globaltypes.h -NoNewline
           Set-Location $env:GITHUB_WORKSPACE
 
       - name: Configure and build plugin
