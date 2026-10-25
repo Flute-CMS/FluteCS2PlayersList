@@ -57,7 +57,7 @@ jobs:
           git clone --recursive --branch master --single-branch \
             https://github.com/alliedmodders/metamod-source.git
           git clone --recursive --branch cs2 --single-branch \
-            https://github.com/alliedmodders/hl2sdk.git hl2sdk-cs2
+            https://github.com/alliedmodders/s2sdk.git hl2sdk-cs2
           cd ../..
 
           git clone https://github.com/pisex/SchemaEntity.git
@@ -139,7 +139,7 @@ jobs:
             https://github.com/alliedmodders/metamod-source.git `
             (Join-Path $pluginRoot 'external\metamod-source')
           git clone --recursive --branch cs2 --single-branch `
-            https://github.com/alliedmodders/hl2sdk.git `
+            https://github.com/alliedmodders/s2sdk.git `
             (Join-Path $pluginRoot 'external\hl2sdk-cs2')
           git clone https://github.com/pisex/SchemaEntity.git SchemaEntity
           Set-Location $pluginRoot
