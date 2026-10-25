@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Platform-agnostic: no CounterStrikeSharp, no SwiftlyS2 in here. Everything that touches the
+       engine goes through IPlayersHost, so the JSON is tested on any machine. -->
+  <PropertyGroup>
+    <RootNamespace>PlayersInfo.Core</RootNamespace>
+    <AssemblyName>PlayersInfo.Core</AssemblyName>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="PlayersInfo.Core.Tests" />
+  </ItemGroup>
+</Project>

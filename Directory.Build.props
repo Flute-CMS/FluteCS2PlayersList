@@ -1,0 +1,20 @@
+<Project>
+  <!-- Shared by core, tests and both C# adapters (the Metamod plugin at the repo root builds with AMBuild
+       and ignores this file). The release version comes from PlayersInfo.cpp GetVersion(): build.sh and CI
+       pass it as -p:Version so all frameworks ship one number. This value is only the fallback. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisMode>Recommended</AnalysisMode>
+    <!-- CA1031: plugin code must catch everything at framework boundaries on purpose;
+         CA1848/CA1873: LoggerMessage delegates buy nothing here; CA1515: public types for tests. -->
+    <NoWarn>$(NoWarn);CA1031;CA1848;CA1873;CA1515</NoWarn>
+    <Version>1.5.0</Version>
+    <Authors>FlamesONE</Authors>
+    <PackageLicenseExpression>GPL-3.0-or-later</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/Flute-CMS/FluteCS2PlayersList</PackageProjectUrl>
+  </PropertyGroup>
+</Project>

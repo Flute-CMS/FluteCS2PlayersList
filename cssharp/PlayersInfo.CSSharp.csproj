@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>PlayersInfo.CSSharp</RootNamespace>
+    <!-- The DLL name is the plugin name CounterStrikeSharp shows (css_plugins list): plugins/PlayersInfo/PlayersInfo.dll. -->
+    <AssemblyName>PlayersInfo</AssemblyName>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Built against the MINIMUM supported CounterStrikeSharp (1.0.369 = first .NET 10 build), so the
+         compiler proves no newer API is used. Must equal [MinimumApiVersion] in PlayersInfoPlugin.cs.
+         The host provides the assembly at runtime: never ship a second copy next to the plugin. -->
+    <PackageReference Include="CounterStrikeSharp.API" Version="1.0.369" ExcludeAssets="runtime" PrivateAssets="all" />
+    <ProjectReference Include="../core/PlayersInfo.Core/PlayersInfo.Core.csproj" />
+  </ItemGroup>
+
+  <Target Name="PackageRelease" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
+    <PropertyGroup>
+      <_Root>$(TargetDir)package/</_Root>
+      <_PluginDir>$(_Root)addons/counterstrikesharp/plugins/PlayersInfo/</_PluginDir>
+      <_Zip>$(MSBuildThisFileDirectory)../dist/PlayersInfo_cssharp_$(Version).zip</_Zip>
+    </PropertyGroup>
+    <ItemGroup>
+      <_PluginFiles Include="$(TargetDir)PlayersInfo.dll;$(TargetDir)PlayersInfo.pdb;$(TargetDir)PlayersInfo.deps.json;$(TargetDir)PlayersInfo.Core.dll;$(TargetDir)PlayersInfo.Core.pdb" />
+    </ItemGroup>
+    <RemoveDir Directories="$(_Root)" />
+    <Copy SourceFiles="@(_PluginFiles)" DestinationFolder="$(_PluginDir)" />
+    <MakeDir Directories="$(MSBuildThisFileDirectory)../dist" />
+    <Delete Files="$(_Zip)" />
+    <ZipDirectory SourceDirectory="$(_Root)" DestinationFile="$(_Zip)" />
+    <Message Importance="high" Text="Packaged $(_Zip)" />
+  </Target>
+
+</Project>

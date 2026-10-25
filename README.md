@@ -1,8 +1,8 @@
 # PlayersInfo
 
-Metamod:Source plugin for CS2 that dumps the server state and connected players as a single JSON line. Built for web dashboards, admin panels, and anything that needs to pull live player info over RCON or a shared file.
+CS2 plugin (Metamod:Source, CounterStrikeSharp or SwiftlyS2) that dumps the server state and connected players as a single JSON line. Built for web dashboards, admin panels, and anything that needs to pull live player info over RCON or a shared file.
 
-[![Build](https://github.com/FlamesONE/cs2-PlayersListCommand/actions/workflows/build.yml/badge.svg)](https://github.com/FlamesONE/cs2-PlayersListCommand/actions/workflows/build.yml)
+[![Build](https://github.com/Flute-CMS/FluteCS2PlayersList/actions/workflows/build.yml/badge.svg)](https://github.com/Flute-CMS/FluteCS2PlayersList/actions/workflows/build.yml)
 
 ---
 
@@ -13,7 +13,7 @@ Metamod:Source plugin for CS2 that dumps the server state and connected players 
 - **Prime status** detection via `UserHasLicenseForApp` with proper Steam API init
 - **UTF-8 safe** — emoji, Cyrillic, any nickname passes through, invalid bytes stripped
 - **RCON multi-packet** aware — 60-player JSON (~12 KB) delivered in full without truncation
-- **No MySQL, no HTTP client, no external services** — just C++ and the CS2 SDK
+- **Standalone** — no Utils, no LvL Ranks, no MySQL, no HTTP client, no other plugins
 
 ---
 
@@ -55,18 +55,18 @@ Example response (`mm_getinfo`):
 
 ## Install
 
-1. Grab `PlayersInfo.zip` from [Releases](https://github.com/FlamesONE/cs2-PlayersListCommand/releases) or a successful CI run.
-2. Extract into `game/csgo/` so you get:
-   ```
-   game/csgo/addons/PlayersInfo/PlayersInfo.so
-   game/csgo/addons/metamod/PlayersInfo.vdf
-   ```
-3. Restart the server, or hot-load: `meta load addons/PlayersInfo/PlayersInfo`
-4. Verify: `meta list` → `PlayersInfo (1.4.0) by Pisex`
+Pick one archive from [Releases](https://github.com/Flute-CMS/FluteCS2PlayersList/releases) and extract it into `game/csgo/`:
 
-**Requirements:**
-- Metamod:Source 2.x for CS2 (KHook-based dev builds)
-- Nothing else: no Utils, no LvL Ranks, no other plugins
+| Your server runs | Archive | Check it loaded |
+|---|---|---|
+| Metamod:Source 2.0 build **1459+** (KHook) | `PlayersInfo_metamod_<ver>_linux.zip` | `meta list` |
+| Metamod:Source 2.0 build **≤1411** (SourceHook) | `PlayersInfo_metamod-legacy_<ver>_linux.zip` | `meta list` |
+| CounterStrikeSharp 1.0.369+ | `PlayersInfo_cssharp_<ver>.zip` | `css_plugins list` |
+| SwiftlyS2 1.4.9+ | `PlayersInfo_swiftly_<ver>.zip` | `sw plugins list` |
+
+`meta version` shows the Metamod build after `dev+`. Build 1459 moved Metamod from SourceHook to KHook (plugin API 17 → 18), and each Metamod refuses the other API. Windows archives are named the same with `_windows`.
+
+All four register the same commands and print the same JSON, so install only one of them.
 
 Full build-from-source instructions in [docs/install.md](docs/install.md).
 

@@ -1,4 +1,4 @@
-name: Build AMBuild Plugin
+name: Build PlayersInfo (Metamod, CounterStrikeSharp, SwiftlyS2)
 
 on:
   push:
@@ -10,15 +10,22 @@ on:
   workflow_dispatch:
 
 env:
-  REPO_NAME: ${{ github.event.repository.name }}
   PLUGIN_NAME: PlayersInfo
 
 jobs:
   build-linux:
-    name: Build (linux)
-    permissions:
-      contents: write
+    name: ${{ matrix.flavor }} (linux)
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # metamod: Metamod builds 1459+ (KHook, plugin API 18); metamod-legacy: builds up to 1411
+        # (SourceHook, API 17). Each Metamod refuses the other API, so both are shipped.
+        # c47debe is the newest metamod SchemaEntity still compiles against (later ones need s2sdk).
+        include:
+          - flavor: metamod
+            mms_pin: c47debe
+          - flavor: metamod-legacy
+            mms_pin: 7ec0f16
     container:
       image: ghcr.io/pisex/ubuntu20:latest
 
@@ -58,9 +65,7 @@ jobs:
             https://github.com/alliedmodders/metamod-source.git
           git clone --recursive --branch cs2 --single-branch \
             https://github.com/alliedmodders/hl2sdk.git hl2sdk-cs2
-          # metamod after c47debe and alliedmodders/s2sdk use a new header layout
-          # that SchemaEntity doesn't support yet; the plugin ABI is unchanged.
-          git -C metamod-source checkout -q c47debe
+          git -C metamod-source checkout -q ${{ matrix.mms_pin }}
           git -C metamod-source submodule update -q --init --recursive
           cd ../..
 
@@ -82,20 +87,29 @@ jobs:
       - name: Package addon into ZIP
         run: |
           cd build/package/addons
-          zip -r "${{ env.REPO_NAME }}-${{ env.PLUGIN_NAME }}-${{ steps.pv.outputs.version }}-linux.zip" .
-          mv "${{ env.REPO_NAME }}-${{ env.PLUGIN_NAME }}-${{ steps.pv.outputs.version }}-linux.zip" "${GITHUB_WORKSPACE}/"
+          zip -r "${{ env.PLUGIN_NAME }}_${{ matrix.flavor }}_${{ steps.pv.outputs.version }}_linux.zip" .
+          mv "${{ env.PLUGIN_NAME }}_${{ matrix.flavor }}_${{ steps.pv.outputs.version }}_linux.zip" "${GITHUB_WORKSPACE}/"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.REPO_NAME }}-${{ env.PLUGIN_NAME }}-${{ steps.pv.outputs.version }}-linux
-          path: ${{ github.workspace }}/${{ env.REPO_NAME }}-${{ env.PLUGIN_NAME }}-${{ steps.pv.outputs.version }}-linux.zip
+          name: ${{ matrix.flavor }}-linux
+          path: ${{ github.workspace }}/${{ env.PLUGIN_NAME }}_${{ matrix.flavor }}_${{ steps.pv.outputs.version }}_linux.zip
+          if-no-files-found: error
 
   build-windows:
-    name: Build (windows)
-    permissions:
-      contents: write
+    name: ${{ matrix.flavor }} (windows)
     runs-on: windows-latest
+    strategy:
+      matrix:
+        # metamod: Metamod builds 1459+ (KHook, plugin API 18); metamod-legacy: builds up to 1411
+        # (SourceHook, API 17). Each Metamod refuses the other API, so both are shipped.
+        # c47debe is the newest metamod SchemaEntity still compiles against (later ones need s2sdk).
+        include:
+          - flavor: metamod
+            mms_pin: c47debe
+          - flavor: metamod-legacy
+            mms_pin: 7ec0f16
 
     env:
       HL2SDK_ROOT: ${{ github.workspace }}\external
@@ -145,7 +159,7 @@ jobs:
           git clone --recursive --branch cs2 --single-branch `
             https://github.com/alliedmodders/hl2sdk.git `
             (Join-Path $pluginRoot 'external\hl2sdk-cs2')
-          git -C (Join-Path $pluginRoot 'external\metamod-source') checkout -q c47debe
+          git -C (Join-Path $pluginRoot 'external\metamod-source') checkout -q ${{ matrix.mms_pin }}
           git -C (Join-Path $pluginRoot 'external\metamod-source') submodule update -q --init --recursive
           git clone https://github.com/pisex/SchemaEntity.git SchemaEntity
           Set-Location $pluginRoot
@@ -184,7 +198,7 @@ jobs:
         shell: pwsh
         run: |
           $ver = "${{ steps.pv.outputs.version }}"
-          $name = "${{ env.REPO_NAME }}-${{ env.PLUGIN_NAME }}-$ver-windows.zip"
+          $name = "${{ env.PLUGIN_NAME }}_${{ matrix.flavor }}_${ver}_windows.zip"
           $src = "build\package\addons"
           $dst = Join-Path $env:GITHUB_WORKSPACE $name
           if (Test-Path $dst) { Remove-Item $dst -Force }
@@ -194,12 +208,42 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.REPO_NAME }}-${{ env.PLUGIN_NAME }}-${{ steps.pv.outputs.version }}-windows
-          path: ${{ github.workspace }}/${{ env.REPO_NAME }}-${{ env.PLUGIN_NAME }}-${{ steps.pv.outputs.version }}-windows.zip
+          name: ${{ matrix.flavor }}-windows
+          path: ${{ github.workspace }}/${{ env.PLUGIN_NAME }}_${{ matrix.flavor }}_${{ steps.pv.outputs.version }}_windows.zip
+          if-no-files-found: error
+
+  # CounterStrikeSharp + SwiftlyS2: one shared core (its tests gate the build), one zip per framework.
+  dotnet:
+    name: CounterStrikeSharp + SwiftlyS2
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      # Same version as the Metamod build: build.sh reads PlayersInfo.cpp GetVersion().
+      - run: ./build.sh
+      - name: Verify packages
+        run: |
+          set -euo pipefail
+          V=$(grep -oE 'GetVersion\(\) *\{ *return "[^"]+"' PlayersInfo.cpp | grep -oE '"[^"]+"' | tr -d '"')
+          for target in cssharp swiftly; do
+            zip="dist/PlayersInfo_${target}_${V}.zip"
+            test -f "$zip" || { echo "::error::$zip was not built"; exit 1; }
+            unzip -l "$zip" | tee listing.txt
+            grep -q PlayersInfo.Core.dll listing.txt || { echo "::error::core missing in $zip"; exit 1; }
+            # The framework provides its own assemblies; a copy next to the plugin breaks type identity.
+            if grep -q -E 'CounterStrikeSharp.API.dll|SwiftlyS2' listing.txt; then echo "::error::framework assembly shipped in $zip"; exit 1; fi
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dotnet
+          path: dist/*.zip
+          if-no-files-found: error
 
   release:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [build-linux, build-windows]
+    needs: [build-linux, build-windows, dotnet]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -244,5 +288,6 @@ jobs:
           tag_name: v${{ steps.pv.outputs.version }}
           name: v${{ steps.pv.outputs.version }}
           files: artifacts/*
+          body_path: .github/release-body.md
           generate_release_notes: true
           make_latest: "true"

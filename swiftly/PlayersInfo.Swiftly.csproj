@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>PlayersInfo.Swiftly</RootNamespace>
+    <AssemblyName>PlayersInfo</AssemblyName>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <!-- Must equal MinimumAPIVersion in the PluginMetadata attribute (generated below from this value). -->
+    <SwiftlyApiVersion>1.4.9</SwiftlyApiVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- SwiftlyS2 provides its own assemblies; a copy next to the plugin would be a second ISwiftlyCore. -->
+    <PackageReference Include="SwiftlyS2.CS2" Version="$(SwiftlyApiVersion)" ExcludeAssets="runtime" PrivateAssets="all" />
+    <ProjectReference Include="../core/PlayersInfo.Core/PlayersInfo.Core.csproj" />
+  </ItemGroup>
+
+  <!-- PluginMetadata is an attribute, so its version must be a compile-time constant: generate it from
+       <Version> so the version is still only written in one place. %3B is ';'. -->
+  <Target Name="GeneratePluginVersion" BeforeTargets="BeforeCompile;CoreCompile">
+    <PropertyGroup>
+      <_VersionFile>$(IntermediateOutputPath)PluginVersion.g.cs</_VersionFile>
+      <_VersionLine>namespace PlayersInfo.Swiftly { internal static class Generated { public const string Version = "$(Version)"%3B public const string SwiftlyApi = "$(SwiftlyApiVersion)"%3B } }</_VersionLine>
+    </PropertyGroup>
+    <WriteLinesToFile File="$(_VersionFile)" Lines="$(_VersionLine)" Overwrite="true" WriteOnlyWhenDifferent="true" />
+    <ItemGroup>
+      <Compile Include="$(_VersionFile)" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="PackageRelease" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
+    <PropertyGroup>
+      <_Root>$(TargetDir)package/</_Root>
+      <_PluginDir>$(_Root)addons/swiftlys2/plugins/PlayersInfo/</_PluginDir>
+      <_Zip>$(MSBuildThisFileDirectory)../dist/PlayersInfo_swiftly_$(Version).zip</_Zip>
+    </PropertyGroup>
+    <ItemGroup>
+      <_PluginFiles Include="$(TargetDir)PlayersInfo.dll;$(TargetDir)PlayersInfo.pdb;$(TargetDir)PlayersInfo.deps.json;$(TargetDir)PlayersInfo.Core.dll;$(TargetDir)PlayersInfo.Core.pdb" />
+    </ItemGroup>
+    <RemoveDir Directories="$(_Root)" />
+    <Copy SourceFiles="@(_PluginFiles)" DestinationFolder="$(_PluginDir)" />
+    <MakeDir Directories="$(MSBuildThisFileDirectory)../dist" />
+    <Delete Files="$(_Zip)" />
+    <ZipDirectory SourceDirectory="$(_Root)" DestinationFile="$(_Zip)" />
+    <Message Importance="high" Text="Packaged $(_Zip)" />
+  </Target>
+
+</Project>

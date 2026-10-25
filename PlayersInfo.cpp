@@ -346,21 +346,52 @@ CON_COMMAND_F(mm_getinfo_slot,
   META_CONPRINT("\n");
 }
 
+static void TrackConnect(int slot) {
+  if (IsValidSlot(slot))
+    g_ConnectionTime[slot] = std::time(nullptr);
+}
+
+static void TrackDisconnect(int slot) {
+  if (IsValidSlot(slot))
+    g_ConnectionTime[slot] = 0;
+}
+
+#if METAMOD_PLAPI_VERSION >= 18
 KHook::Return<void> PlayersInfo::OnClientConnected(
     IServerGameClients *, CPlayerSlot slot, const char *, uint64, const char *,
     const char *, bool) {
-  if (IsValidSlot(slot.Get()))
-    g_ConnectionTime[slot.Get()] = std::time(nullptr);
+  TrackConnect(slot.Get());
   return {KHook::Action::Ignore};
 }
 
 KHook::Return<void> PlayersInfo::OnClientDisconnect(
     IServerGameClients *, CPlayerSlot slot, ENetworkDisconnectionReason,
     const char *, uint64, const char *) {
-  if (IsValidSlot(slot.Get()))
-    g_ConnectionTime[slot.Get()] = 0;
+  TrackDisconnect(slot.Get());
   return {KHook::Action::Ignore};
 }
+
+#else
+SH_DECL_HOOK6_void(IServerGameClients, OnClientConnected, SH_NOATTRIB, 0,
+                   CPlayerSlot, const char *, uint64, const char *,
+                   const char *, bool);
+SH_DECL_HOOK5_void(IServerGameClients, ClientDisconnect, SH_NOATTRIB, 0,
+                   CPlayerSlot, ENetworkDisconnectionReason, const char *,
+                   uint64, const char *);
+
+void PlayersInfo::OnClientConnected(CPlayerSlot slot, const char *, uint64,
+                                    const char *, const char *, bool) {
+  TrackConnect(slot.Get());
+  RETURN_META(MRES_IGNORED);
+}
+
+void PlayersInfo::OnClientDisconnect(CPlayerSlot slot,
+                                     ENetworkDisconnectionReason, const char *,
+                                     uint64, const char *) {
+  TrackDisconnect(slot.Get());
+  RETURN_META(MRES_IGNORED);
+}
+#endif
 
 bool PlayersInfo::Load(PluginId id, ISmmAPI *ismm, char *error, size_t maxlen,
                        bool late) {
@@ -378,16 +409,30 @@ bool PlayersInfo::Load(PluginId id, ISmmAPI *ismm, char *error, size_t maxlen,
   GET_V_IFACE_ANY(GetServerFactory, g_pSource2GameClients, IServerGameClients,
                   SOURCE2GAMECLIENTS_INTERFACE_VERSION);
 
+#if METAMOD_PLAPI_VERSION >= 18
   m_hkClientConnected.Add(g_pSource2GameClients);
   m_hkClientDisconnect.Add(g_pSource2GameClients);
+#else
+  SH_ADD_HOOK(IServerGameClients, OnClientConnected, g_pSource2GameClients,
+              SH_MEMBER(this, &PlayersInfo::OnClientConnected), true);
+  SH_ADD_HOOK(IServerGameClients, ClientDisconnect, g_pSource2GameClients,
+              SH_MEMBER(this, &PlayersInfo::OnClientDisconnect), true);
+#endif
   ConVar_Register(FCVAR_RELEASE | FCVAR_SERVER_CAN_EXECUTE | FCVAR_GAMEDLL);
 
   return true;
 }
 
 bool PlayersInfo::Unload(char *error, size_t maxlen) {
+#if METAMOD_PLAPI_VERSION >= 18
   m_hkClientConnected.Remove(g_pSource2GameClients);
   m_hkClientDisconnect.Remove(g_pSource2GameClients);
+#else
+  SH_REMOVE_HOOK(IServerGameClients, OnClientConnected, g_pSource2GameClients,
+                 SH_MEMBER(this, &PlayersInfo::OnClientConnected), true);
+  SH_REMOVE_HOOK(IServerGameClients, ClientDisconnect, g_pSource2GameClients,
+                 SH_MEMBER(this, &PlayersInfo::OnClientDisconnect), true);
+#endif
   ConVar_Unregister();
   g_PrimeCache.clear();
   g_SteamApiReady = false;
@@ -397,7 +442,7 @@ bool PlayersInfo::Unload(char *error, size_t maxlen) {
 }
 
 const char *PlayersInfo::GetLicense() { return "GPL"; }
-const char *PlayersInfo::GetVersion() { return "1.4.0"; }
+const char *PlayersInfo::GetVersion() { return "1.5.0"; }
 const char *PlayersInfo::GetDate() { return __DATE__; }
 const char *PlayersInfo::GetLogTag() { return "PlayersInfo"; }
 const char *PlayersInfo::GetAuthor() { return "Pisex"; }
