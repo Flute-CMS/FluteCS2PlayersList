@@ -7,10 +7,8 @@
 | CS2 dedicated server (Linux, x86_64) | yes | the server this plugin attaches to |
 | Metamod:Source 2.x for CS2 | yes | plugin host |
 | [Pisex/SchemaEntity](https://github.com/Pisex/SchemaEntity) | yes (build time) | schema accessors (`CCSPlayerController`, `CTeam`, etc.) |
-| [Pisex/cs2-menus](https://github.com/Pisex/cs2-menus) (Utils API) | yes | events (`player_connect` / `player_disconnect`) and CS2 globals |
-| [Pisex/cs2-lvl_ranks](https://github.com/Pisex/cs2-lvl_ranks) | optional | enables the `rank` field in the JSON |
 
-> Note: the plugin no longer depends on `Pisex/cs2-new-players` ("Players API"). Player names and SteamIDs are read directly from `CCSPlayerController`. If `new_players` is loaded it is simply ignored.
+> Note: since 1.4.0 the plugin is standalone. It no longer needs `Pisex/cs2-menus` (Utils API) or `Pisex/cs2-lvl_ranks`: globals and the entity system come straight from the engine, and connect/disconnect is tracked with Metamod's built-in hooks. The `rank` field was removed together with the LvL Ranks integration.
 
 ## Quick install (prebuilt)
 
@@ -21,7 +19,7 @@
    game/csgo/addons/metamod/PlayersInfo.vdf
    ```
 3. Restart the server (or `meta load addons/PlayersInfo/PlayersInfo`).
-4. Verify with `meta list` — you should see `PlayersInfo (1.3.1) by Pisex`.
+4. Verify with `meta list` — you should see `PlayersInfo (1.4.0) by Pisex`.
 
 ## Build from source
 

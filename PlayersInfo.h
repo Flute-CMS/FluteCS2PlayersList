@@ -16,16 +16,20 @@
 #include "CGameRules.h"
 #include "CTeam.h"
 #include "CCSPlayerController.h"
-#include "include/menus.h"
-#include "include/lvl_ranks.h"
+#include <eiface.h>
 
-class PlayersInfo final : public ISmmPlugin, public IMetamodListener
+class PlayersInfo final : public ISmmPlugin
 {
 public:
 	bool Load(PluginId id, ISmmAPI* ismm, char* error, size_t maxlen, bool late);
 	bool Unload(char* error, size_t maxlen);
-	void AllPluginsLoaded();
 private:
+	KHook::Return<void> OnClientConnected(IServerGameClients*, CPlayerSlot slot, const char* pszName, uint64 xuid, const char* pszNetworkID, const char* pszAddress, bool bFakePlayer);
+	KHook::Return<void> OnClientDisconnect(IServerGameClients*, CPlayerSlot slot, ENetworkDisconnectionReason reason, const char* pszName, uint64 xuid, const char* pszNetworkID);
+
+	KHook::Virtual<IServerGameClients, void, CPlayerSlot, const char*, uint64, const char*, const char*, bool> m_hkClientConnected{ &IServerGameClients::OnClientConnected, this, nullptr, &PlayersInfo::OnClientConnected };
+	KHook::Virtual<IServerGameClients, void, CPlayerSlot, ENetworkDisconnectionReason, const char*, uint64, const char*> m_hkClientDisconnect{ &IServerGameClients::ClientDisconnect, this, nullptr, &PlayersInfo::OnClientDisconnect };
+
 	const char* GetAuthor();
 	const char* GetName();
 	const char* GetDescription();

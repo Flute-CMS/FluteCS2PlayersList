@@ -62,12 +62,11 @@ Example response (`mm_getinfo`):
    game/csgo/addons/metamod/PlayersInfo.vdf
    ```
 3. Restart the server, or hot-load: `meta load addons/PlayersInfo/PlayersInfo`
-4. Verify: `meta list` → `PlayersInfo (1.3.3) by Pisex`
+4. Verify: `meta list` → `PlayersInfo (1.4.0) by Pisex`
 
 **Requirements:**
-- Metamod:Source 2.x for CS2
-- [Pisex/cs2-menus](https://github.com/Pisex/cs2-menus) (Utils API)
-- [Pisex/cs2-lvl_ranks](https://github.com/Pisex/cs2-lvl_ranks) *(optional — enables `rank` field)*
+- Metamod:Source 2.x for CS2 (KHook-based dev builds)
+- Nothing else: no Utils, no LvL Ranks, no other plugins
 
 Full build-from-source instructions in [docs/install.md](docs/install.md).
 

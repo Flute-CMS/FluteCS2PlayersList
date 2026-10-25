@@ -21,16 +21,22 @@ using json = nlohmann::json;
 PlayersInfo g_PlayersInfo;
 PLUGIN_EXPOSE(PlayersInfo, g_PlayersInfo);
 
-IVEngineServer2 *engine = nullptr;
 CGameEntitySystem *g_pGameEntitySystem = nullptr;
 CEntitySystem *g_pEntitySystem = nullptr;
 CGlobalVars *gpGlobals = nullptr;
 
-IUtilsApi *g_pUtils = nullptr;
-IPlayersApi *g_pPlayers = nullptr;
-ILRApi *g_pLRCore = nullptr;
-
-CGameEntitySystem *GameEntitySystem() { return g_pGameEntitySystem; }
+// Same offset Utils/CSSharp/cs2fixes use; the field is not part of any vtable.
+CGameEntitySystem *GameEntitySystem() {
+  if (!g_pGameResourceServiceServer)
+    return nullptr;
+  return *reinterpret_cast<CGameEntitySystem **>(
+      reinterpret_cast<uintptr_t>(g_pGameResourceServiceServer) +
+#ifdef _WIN32
+      0x58);
+#else
+      0x50);
+#endif
+}
 
 namespace {
 
@@ -47,6 +53,16 @@ bool g_SteamApiReady = false;
 
 bool IsValidSlot(int slot) noexcept {
   return slot >= 0 && slot < kMaxPlayers;
+}
+
+// Pointers change on map load, so refresh them before every dump instead of
+// hooking server startup.
+void RefreshGlobals() {
+  INetworkGameServer *server =
+      g_pNetworkServerService ? g_pNetworkServerService->GetIGameServer()
+                              : nullptr;
+  gpGlobals = server ? server->GetGlobals() : nullptr;
+  g_pEntitySystem = g_pGameEntitySystem = GameEntitySystem();
 }
 
 int GetSlotLimit() noexcept {
@@ -249,13 +265,11 @@ json BuildPlayerJson(int slot, CCSPlayerController *ctrl, time_t now) {
   j["prime"] = LookupPrime(steamid64);
   j["alive"] = (ctrl->m_hPlayerPawn() != nullptr);
 
-  if (g_pLRCore && g_pLRCore->GetClientStatus(slot))
-    j["rank"] = g_pLRCore->GetClientInfo(slot, ST_RANK);
-
   return j;
 }
 
 json GetServerInfo() {
+  RefreshGlobals();
   const time_t now = std::time(nullptr);
 
   json jdata;
@@ -318,6 +332,7 @@ CON_COMMAND_F(mm_getinfo_slot,
     META_CONPRINT("usage: mm_getinfo_slot <slot>\n");
     return;
   }
+  RefreshGlobals();
   int slot = -1;
   json j;
   if (TryParseSlotArgument(args[1], slot) && IsRealPlayer(slot)) {
@@ -331,34 +346,20 @@ CON_COMMAND_F(mm_getinfo_slot,
   META_CONPRINT("\n");
 }
 
-static void OnStartupServer() {
-  if (!g_pUtils)
-    return;
-  g_pGameEntitySystem = g_pUtils->GetCGameEntitySystem();
-  g_pEntitySystem = g_pUtils->GetCEntitySystem();
-  gpGlobals = g_pUtils->GetCGlobalVars();
-
-  g_PrimeCache.clear();
-  for (int i = 0; i < kMaxPlayers; ++i)
-    g_ConnectionTime[i] = 0;
+KHook::Return<void> PlayersInfo::OnClientConnected(
+    IServerGameClients *, CPlayerSlot slot, const char *, uint64, const char *,
+    const char *, bool) {
+  if (IsValidSlot(slot.Get()))
+    g_ConnectionTime[slot.Get()] = std::time(nullptr);
+  return {KHook::Action::Ignore};
 }
 
-static void OnPlayerConnect(const char *, IGameEvent *pEvent, bool) {
-  if (!pEvent)
-    return;
-  const int slot = pEvent->GetInt("userid");
-  if (!IsValidSlot(slot))
-    return;
-  g_ConnectionTime[slot] = std::time(nullptr);
-}
-
-static void OnPlayerDisconnect(const char *, IGameEvent *pEvent, bool) {
-  if (!pEvent)
-    return;
-  const int slot = pEvent->GetInt("userid");
-  if (!IsValidSlot(slot))
-    return;
-  g_ConnectionTime[slot] = 0;
+KHook::Return<void> PlayersInfo::OnClientDisconnect(
+    IServerGameClients *, CPlayerSlot slot, ENetworkDisconnectionReason,
+    const char *, uint64, const char *) {
+  if (IsValidSlot(slot.Get()))
+    g_ConnectionTime[slot.Get()] = 0;
+  return {KHook::Action::Ignore};
 }
 
 bool PlayersInfo::Load(PluginId id, ISmmAPI *ismm, char *error, size_t maxlen,
@@ -368,18 +369,25 @@ bool PlayersInfo::Load(PluginId id, ISmmAPI *ismm, char *error, size_t maxlen,
   GET_V_IFACE_CURRENT(GetEngineFactory, g_pCVar, ICvar, CVAR_INTERFACE_VERSION);
   GET_V_IFACE_ANY(GetEngineFactory, g_pSchemaSystem, ISchemaSystem,
                   SCHEMASYSTEM_INTERFACE_VERSION);
-  GET_V_IFACE_CURRENT(GetEngineFactory, engine, IVEngineServer2,
-                      SOURCE2ENGINETOSERVER_INTERFACE_VERSION);
+  GET_V_IFACE_CURRENT(GetEngineFactory, g_pNetworkServerService,
+                      INetworkServerService,
+                      NETWORKSERVERSERVICE_INTERFACE_VERSION);
+  GET_V_IFACE_CURRENT(GetEngineFactory, g_pGameResourceServiceServer,
+                      IGameResourceService,
+                      GAMERESOURCESERVICESERVER_INTERFACE_VERSION);
+  GET_V_IFACE_ANY(GetServerFactory, g_pSource2GameClients, IServerGameClients,
+                  SOURCE2GAMECLIENTS_INTERFACE_VERSION);
 
-  g_SMAPI->AddListener(this, this);
+  m_hkClientConnected.Add(g_pSource2GameClients);
+  m_hkClientDisconnect.Add(g_pSource2GameClients);
   ConVar_Register(FCVAR_RELEASE | FCVAR_SERVER_CAN_EXECUTE | FCVAR_GAMEDLL);
 
   return true;
 }
 
 bool PlayersInfo::Unload(char *error, size_t maxlen) {
-  if (g_pUtils)
-    g_pUtils->ClearAllHooks(g_PLID);
+  m_hkClientConnected.Remove(g_pSource2GameClients);
+  m_hkClientDisconnect.Remove(g_pSource2GameClients);
   ConVar_Unregister();
   g_PrimeCache.clear();
   g_SteamApiReady = false;
@@ -388,33 +396,8 @@ bool PlayersInfo::Unload(char *error, size_t maxlen) {
   return true;
 }
 
-void PlayersInfo::AllPluginsLoaded() {
-  int ret = 0;
-
-  g_pUtils = static_cast<IUtilsApi *>(
-      g_SMAPI->MetaFactory(Utils_INTERFACE, &ret, nullptr));
-  if (ret == META_IFACE_FAILED) {
-    ConColorMsg(Color(255, 0, 0, 255), "[%s] Missing Utils system plugin\n",
-                GetLogTag());
-    engine->ServerCommand(("meta unload " + std::to_string(g_PLID)).c_str());
-    return;
-  }
-
-  g_pLRCore = static_cast<ILRApi *>(
-      g_SMAPI->MetaFactory(LR_INTERFACE, &ret, nullptr));
-  if (ret == META_IFACE_FAILED)
-    g_pLRCore = nullptr;
-
-  g_pUtils->StartupServer(g_PLID, OnStartupServer);
-  g_pUtils->HookEvent(g_PLID, "player_connect", OnPlayerConnect);
-  g_pUtils->HookEvent(g_PLID, "player_disconnect", OnPlayerDisconnect);
-
-  if (!gpGlobals)
-    OnStartupServer();
-}
-
 const char *PlayersInfo::GetLicense() { return "GPL"; }
-const char *PlayersInfo::GetVersion() { return "1.3.3"; }
+const char *PlayersInfo::GetVersion() { return "1.4.0"; }
 const char *PlayersInfo::GetDate() { return __DATE__; }
 const char *PlayersInfo::GetLogTag() { return "PlayersInfo"; }
 const char *PlayersInfo::GetAuthor() { return "Pisex"; }

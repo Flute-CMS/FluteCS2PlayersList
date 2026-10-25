@@ -44,8 +44,7 @@ A single entry in `players[]`. Also returned directly by `mm_getinfo_slot N`.
   "ping": 1,                         // ping in ms
   "playtime": 6,                     // seconds since connect
   "prime": true,                     // has Prime Status (CS2)
-  "alive": true,                     // has a live pawn
-  "rank": 42                         // optional, only if LvL Ranks plugin is loaded
+  "alive": true                      // has a live pawn
 }
 ```
 
@@ -61,10 +60,9 @@ A single entry in `players[]`. Also returned directly by `mm_getinfo_slot N`.
 | `death` | `int` | `m_iDeaths` | 0 if unavailable. Spelled `death` (not `deaths`) for backwards compatibility with v1.0 clients |
 | `headshots` | `int` | `m_iHeadShotKills` | |
 | `ping` | `int` | `m_iPing` | May be 0 for a few seconds after connect |
-| `playtime` | `int64` | `time - connection_time` | Seconds since the `player_connect` event |
+| `playtime` | `int64` | `time - connection_time` | Seconds since the client connected (or since the plugin first saw the player, if it was loaded mid-match) |
 | `prime` | `bool` | `ISteamGameServer::UserHasLicenseForApp(steamid, 624820)` | Cached per SteamID. Returns `false` until the Steam gameserver has logged in |
 | `alive` | `bool` | `m_hPlayerPawn != null` | |
-| `rank` | `int` | `ILRApi::GetClientInfo(slot, ST_RANK)` | **Field is omitted** if the LvL Ranks plugin is not loaded, or the player has no rank |
 
 ---
 
