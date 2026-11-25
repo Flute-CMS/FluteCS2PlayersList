@@ -19,7 +19,7 @@
    game/csgo/addons/metamod/PlayersInfo.vdf
    ```
 3. Restart the server (or `meta load addons/PlayersInfo/PlayersInfo`).
-4. Verify with `meta list` — you should see `PlayersInfo (1.5.0) by Pisex`.
+4. Verify with `meta list` — you should see `PlayersInfo (1.5.1) by Pisex`.
 
 ## Build from source
 
@@ -27,7 +27,7 @@ Requires:
 - Ubuntu 20.04 (or equivalent with clang-10 / gcc-9)
 - Python 3, AMBuild
 - Metamod:Source checkout (`$MMS_PATH`)
-- HL2SDK-CS2 checkout (`$HL2SDK_ROOT/hl2sdk-cs2`)
+- S2SDK checkout at the `sdk_ref` from CI (`$HL2SDK_ROOT/hl2sdk-cs2`)
 - `SchemaEntity` sibling directory (next to this repo)
 
 ```bash
@@ -35,6 +35,8 @@ pip install git+https://github.com/alliedmodders/ambuild
 export MMS_PATH=/path/to/metamod-source
 export HL2SDK_ROOT=/path/to/sdks    # must contain hl2sdk-cs2/
 git clone https://github.com/Pisex/SchemaEntity ../SchemaEntity
+git -C ../SchemaEntity checkout e7965b3c83ec684d44584ee6457c5482ee5d9db1
+bash prepare-schemaentity.sh ../SchemaEntity
 
 mkdir build && cd build
 python3 ../configure.py \
@@ -53,15 +55,11 @@ The artifact lands in `build/package/addons/PlayersInfo/PlayersInfo.so` and `bui
 
 The repository ships with a GitHub Actions workflow at `.github/workflows/build.yml`:
 
-- **Metamod, linux + windows:** built twice, against metamod `c47debe` (KHook, API 18 → `metamod`) and `7ec0f16` = build 1411 (SourceHook, API 17 → `metamod-legacy`). Newer metamod needs alliedmodders/s2sdk, which SchemaEntity doesn't build against yet.
+- **Metamod, Linux and Windows** use Metamod 2.0.0-git1491 (KHook, API 18) and S2SDK for CS2 1.42.0.1. The legacy package uses Metamod build 1411 (SourceHook, API 17) and the archived HL2SDK for older game builds.
 - **CounterStrikeSharp + SwiftlyS2:** `./build.sh` runs the core tests, then packs both C# plugins into `dist/`.
 - **on push to `main`:** if the version from `PlayersInfo.cpp` has no release yet, all archives are published as `v<version>` with `.github/release-body.md` on top.
 
-The workflow patches `SchemaEntity` at build time to match current `hl2sdk-cs2`:
-- `NetworkStateChanged_t` → `NetworkStateChangedData`
-- `FL_{PAWN,CONTROLLER}_FAKECLIENT` → `FL_FAKECLIENT`
-
-If upstream `Pisex/SchemaEntity` updates, the patches can be dropped.
+The build runs `prepare-schemaentity.sh` against the pinned SchemaEntity checkout.
 
 ## Uninstall
 

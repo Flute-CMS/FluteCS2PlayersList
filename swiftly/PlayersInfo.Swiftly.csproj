@@ -12,6 +12,7 @@
   <ItemGroup>
     <!-- SwiftlyS2 provides its own assemblies; a copy next to the plugin would be a second ISwiftlyCore. -->
     <PackageReference Include="SwiftlyS2.CS2" Version="$(SwiftlyApiVersion)" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="MySqlConnector" Version="2.6.2" ExcludeAssets="runtime" PrivateAssets="all" />
     <ProjectReference Include="../core/PlayersInfo.Core/PlayersInfo.Core.csproj" />
   </ItemGroup>
 

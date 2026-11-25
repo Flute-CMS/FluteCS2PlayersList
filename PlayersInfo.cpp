@@ -5,6 +5,13 @@
 #include "metamod_oslink.h"
 #include "schemasystem/schemasystem.h"
 
+#if METAMOD_PLAPI_VERSION >= 18
+#include <engine2/igameresourceservice.h>
+#include <engine2/inetworkserverservice.h>
+#include <engine2/networkgameserverbase.h>
+#include <interfaces/interfaces.h>
+#endif
+
 #include <cerrno>
 #include <cctype>
 #include <cstdio>
@@ -25,6 +32,7 @@ CGameEntitySystem *g_pGameEntitySystem = nullptr;
 CEntitySystem *g_pEntitySystem = nullptr;
 CGlobalVars *gpGlobals = nullptr;
 
+#if METAMOD_PLAPI_VERSION < 18
 // Same offset Utils/CSSharp/cs2fixes use; the field is not part of any vtable.
 CGameEntitySystem *GameEntitySystem() {
   if (!g_pGameResourceServiceServer)
@@ -37,6 +45,7 @@ CGameEntitySystem *GameEntitySystem() {
       0x50);
 #endif
 }
+#endif
 
 namespace {
 
@@ -48,8 +57,6 @@ constexpr size_t kConsoleChunk = 1024;
 
 time_t g_ConnectionTime[kMaxPlayers] = {};
 std::unordered_map<uint64, bool> g_PrimeCache;
-CSteamGameServerAPIContext g_SteamApi;
-bool g_SteamApiReady = false;
 
 bool IsValidSlot(int slot) noexcept {
   return slot >= 0 && slot < kMaxPlayers;
@@ -123,13 +130,6 @@ bool IsRealPlayer(int slot) {
   return ctrl->m_steamID() != 0;
 }
 
-bool EnsureSteamApi() {
-  if (g_SteamApiReady)
-    return true;
-  g_SteamApiReady = g_SteamApi.Init();
-  return g_SteamApiReady;
-}
-
 bool LookupPrime(uint64 steamid64) {
   if (steamid64 == 0)
     return false;
@@ -140,9 +140,7 @@ bool LookupPrime(uint64 steamid64) {
 void CachePrime(uint64 steamid64) {
   if (steamid64 == 0 || g_PrimeCache.count(steamid64))
     return;
-  if (!EnsureSteamApi())
-    return;
-  ISteamGameServer *pServer = g_SteamApi.SteamGameServer();
+  ISteamGameServer *pServer = SteamGameServer();
   if (!pServer || !pServer->BLoggedOn())
     return;
   CSteamID id(steamid64);
@@ -406,13 +404,15 @@ bool PlayersInfo::Load(PluginId id, ISmmAPI *ismm, char *error, size_t maxlen,
   GET_V_IFACE_CURRENT(GetEngineFactory, g_pGameResourceServiceServer,
                       IGameResourceService,
                       GAMERESOURCESERVICESERVER_INTERFACE_VERSION);
-  GET_V_IFACE_ANY(GetServerFactory, g_pSource2GameClients, IServerGameClients,
-                  SOURCE2GAMECLIENTS_INTERFACE_VERSION);
-
 #if METAMOD_PLAPI_VERSION >= 18
+  GET_V_IFACE_ANY(GetServerFactory, g_pSource2GameClients, IServerGameClients,
+                  INTERFACEVERSION_SERVERGAMECLIENTS);
+
   m_hkClientConnected.Add(g_pSource2GameClients);
   m_hkClientDisconnect.Add(g_pSource2GameClients);
 #else
+  GET_V_IFACE_ANY(GetServerFactory, g_pSource2GameClients, IServerGameClients,
+                  SOURCE2GAMECLIENTS_INTERFACE_VERSION);
   SH_ADD_HOOK(IServerGameClients, OnClientConnected, g_pSource2GameClients,
               SH_MEMBER(this, &PlayersInfo::OnClientConnected), true);
   SH_ADD_HOOK(IServerGameClients, ClientDisconnect, g_pSource2GameClients,
@@ -435,14 +435,13 @@ bool PlayersInfo::Unload(char *error, size_t maxlen) {
 #endif
   ConVar_Unregister();
   g_PrimeCache.clear();
-  g_SteamApiReady = false;
   for (int i = 0; i < kMaxPlayers; ++i)
     g_ConnectionTime[i] = 0;
   return true;
 }
 
 const char *PlayersInfo::GetLicense() { return "GPL"; }
-const char *PlayersInfo::GetVersion() { return "1.5.0"; }
+const char *PlayersInfo::GetVersion() { return "1.5.1"; }
 const char *PlayersInfo::GetDate() { return __DATE__; }
 const char *PlayersInfo::GetLogTag() { return "PlayersInfo"; }
 const char *PlayersInfo::GetAuthor() { return "Pisex"; }

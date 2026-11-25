@@ -11,6 +11,7 @@ on:
 
 env:
   PLUGIN_NAME: PlayersInfo
+  SCHEMAENTITY_REF: e7965b3c83ec684d44584ee6457c5482ee5d9db1
 
 jobs:
   build-linux:
@@ -20,14 +21,17 @@ jobs:
       matrix:
         # metamod: Metamod builds 1459+ (KHook, plugin API 18); metamod-legacy: builds up to 1411
         # (SourceHook, API 17). Each Metamod refuses the other API, so both are shipped.
-        # c47debe is the newest metamod SchemaEntity still compiles against (later ones need s2sdk).
         include:
           - flavor: metamod
-            mms_pin: c47debe
+            mms_pin: c5cad5a2f8f132fe6fd4fb49ae9b7df7254db7c3
+            sdk_repo: s2sdk
+            sdk_ref: 64de8f6101e0697d935ff607b2da4e7dd3bc94c7
           - flavor: metamod-legacy
             mms_pin: 7ec0f16
+            sdk_repo: hl2sdk
+            sdk_ref: 3f4110dce3060b352d49bf100f1a43f7705aab06
     container:
-      image: ghcr.io/pisex/ubuntu20:latest
+      image: ghcr.io/source2ze/build-containers@sha256:b7708a61bae72133b08d78c54135f760191bfd6f1ba6c8f36aff991e7530d8fa
 
     env:
       HL2SDK_ROOT: "${{ github.workspace }}/external"
@@ -48,40 +52,27 @@ jobs:
 
       - name: Set up build dependencies
         run: |
-          export DEBIAN_FRONTEND=noninteractive
-          apt-get update -qy
-          apt-get install -y git binutils python3 python3-pip zip
-          python3 -m pip install --upgrade pip importlib-metadata
-          python3 -m pip install setuptools==45.2.0
-
-          git clone https://github.com/alliedmodders/ambuild.git ambuild
-          cd ambuild
-          pip3 install .
-          cd ..
-
           mkdir -p external
           cd external
           git clone --recursive --branch master --single-branch \
             https://github.com/alliedmodders/metamod-source.git
           git clone --recursive --branch cs2 --single-branch \
-            https://github.com/alliedmodders/hl2sdk.git hl2sdk-cs2
+            https://github.com/alliedmodders/${{ matrix.sdk_repo }}.git hl2sdk-cs2
+          git -C hl2sdk-cs2 checkout -q ${{ matrix.sdk_ref }}
+          git -C hl2sdk-cs2 submodule update -q --init --recursive
           git -C metamod-source checkout -q ${{ matrix.mms_pin }}
           git -C metamod-source submodule update -q --init --recursive
           cd ../..
 
           git clone https://github.com/pisex/SchemaEntity.git
-          sed -i 's/NetworkStateChanged_t/NetworkStateChangedData/g' SchemaEntity/schemasystem.cpp
-          sed -i 's/FL_PAWN_FAKECLIENT/FL_FAKECLIENT/g' SchemaEntity/CCSPlayerPawn.h
-          sed -i 's/FL_CONTROLLER_FAKECLIENT/FL_FAKECLIENT/g' SchemaEntity/CCSPlayerController.h
-          # hl2sdk cs2 no longer pulls ray/gametrace types in transitively; SchemaEntity
-          # needs Ray_t/RayType_t/CHitBox/HitGroup_t from gametrace.h (which includes ray.h)
-          sed -i 's|#include <platform.h>|#include <platform.h>\n#include <gametrace.h>|' SchemaEntity/globaltypes.h
+          git -C SchemaEntity checkout -q "$SCHEMAENTITY_REF"
+          bash "$GITHUB_WORKSPACE/prepare-schemaentity.sh" SchemaEntity ${{ matrix.sdk_repo }}
 
       - name: Configure and build plugin
         run: |
           mkdir build
           cd build
-          python3 ../configure.py -s cs2 --targets x86_64 --enable-optimize --hl2sdk-manifests=$MANIFEST_PATH --mms_path=$MMS_PATH --hl2sdk-root=$HL2SDK_ROOT
+          python3 ../configure.py -s cs2 --targets x86_64 --enable-optimize --hl2sdk-manifests="$MANIFEST_PATH" --mms_path="$MMS_PATH" --hl2sdk-root="$HL2SDK_ROOT"
           ambuild
 
       - name: Package addon into ZIP
@@ -104,12 +95,15 @@ jobs:
       matrix:
         # metamod: Metamod builds 1459+ (KHook, plugin API 18); metamod-legacy: builds up to 1411
         # (SourceHook, API 17). Each Metamod refuses the other API, so both are shipped.
-        # c47debe is the newest metamod SchemaEntity still compiles against (later ones need s2sdk).
         include:
           - flavor: metamod
-            mms_pin: c47debe
+            mms_pin: c5cad5a2f8f132fe6fd4fb49ae9b7df7254db7c3
+            sdk_repo: s2sdk
+            sdk_ref: 64de8f6101e0697d935ff607b2da4e7dd3bc94c7
           - flavor: metamod-legacy
             mms_pin: 7ec0f16
+            sdk_repo: hl2sdk
+            sdk_ref: 3f4110dce3060b352d49bf100f1a43f7705aab06
 
     env:
       HL2SDK_ROOT: ${{ github.workspace }}\external
@@ -157,28 +151,20 @@ jobs:
             https://github.com/alliedmodders/metamod-source.git `
             (Join-Path $pluginRoot 'external\metamod-source')
           git clone --recursive --branch cs2 --single-branch `
-            https://github.com/alliedmodders/hl2sdk.git `
+            https://github.com/alliedmodders/${{ matrix.sdk_repo }}.git `
             (Join-Path $pluginRoot 'external\hl2sdk-cs2')
+          git -C (Join-Path $pluginRoot 'external\hl2sdk-cs2') checkout -q ${{ matrix.sdk_ref }}
+          git -C (Join-Path $pluginRoot 'external\hl2sdk-cs2') submodule update -q --init --recursive
           git -C (Join-Path $pluginRoot 'external\metamod-source') checkout -q ${{ matrix.mms_pin }}
           git -C (Join-Path $pluginRoot 'external\metamod-source') submodule update -q --init --recursive
           git clone https://github.com/pisex/SchemaEntity.git SchemaEntity
           Set-Location $pluginRoot
 
       - name: Patch SchemaEntity
-        shell: pwsh
+        shell: bash
         run: |
-          # SchemaEntity lives in the runner root (one above the plugin dir).
-          Set-Location (Split-Path -Parent $env:GITHUB_WORKSPACE)
-          (Get-Content SchemaEntity/schemasystem.cpp -Raw) `
-            -replace 'NetworkStateChanged_t', 'NetworkStateChangedData' | Set-Content SchemaEntity/schemasystem.cpp -NoNewline
-          (Get-Content SchemaEntity/CCSPlayerPawn.h -Raw) `
-            -replace 'FL_PAWN_FAKECLIENT', 'FL_FAKECLIENT' | Set-Content SchemaEntity/CCSPlayerPawn.h -NoNewline
-          (Get-Content SchemaEntity/CCSPlayerController.h -Raw) `
-            -replace 'FL_CONTROLLER_FAKECLIENT', 'FL_FAKECLIENT' | Set-Content SchemaEntity/CCSPlayerController.h -NoNewline
-          # hl2sdk cs2 no longer pulls ray/gametrace types in transitively
-          (Get-Content SchemaEntity/globaltypes.h -Raw) `
-            -replace '#include <platform.h>', "#include <platform.h>`r`n#include <gametrace.h>" | Set-Content SchemaEntity/globaltypes.h -NoNewline
-          Set-Location $env:GITHUB_WORKSPACE
+          git -C ../SchemaEntity checkout -q "$SCHEMAENTITY_REF"
+          bash prepare-schemaentity.sh ../SchemaEntity ${{ matrix.sdk_repo }}
 
       - name: Configure and build plugin
         shell: pwsh

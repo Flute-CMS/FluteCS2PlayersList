@@ -4,7 +4,15 @@
 #include <ISmmPlugin.h>
 #include "utlvector.h"
 #include "ehandle.h"
+#if METAMOD_PLAPI_VERSION >= 18
+#include <engine2/isource2server.h>
+#include <engine2/ivengineserver2.h>
+#include <tier0/keyvalues.h>
+#else
 #include <iserver.h>
+#include <eiface.h>
+#include <KeyValues.h>
+#endif
 #include <entity2/entitysystem.h>
 #include <steam/steam_gameserver.h>
 #include "igameevents.h"
@@ -12,11 +20,9 @@
 #include <deque>
 #include <functional>
 #include <utlstring.h>
-#include <KeyValues.h>
 #include "CGameRules.h"
 #include "CTeam.h"
 #include "CCSPlayerController.h"
-#include <eiface.h>
 
 class PlayersInfo final : public ISmmPlugin
 {
